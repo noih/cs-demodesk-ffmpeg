@@ -1,0 +1,82 @@
+name: Build FFmpeg
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 * * * *'
+permissions:
+  contents: read
+concurrency:
+  group: ffmpeg-release
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      builder: ${{ steps.upstream.outputs.builder }}
+      ffmpeg: ${{ steps.upstream.outputs.ffmpeg }}
+      tag: ${{ steps.upstream.outputs.tag }}
+      changed: ${{ steps.upstream.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: upstream
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          python3 scripts/test_check_release.py
+          python3 scripts/check-release.py
+  build:
+    needs: check
+    if: needs.check.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build minimal Windows package
+        env:
+          BUILDER_REV: ${{ needs.check.outputs.builder }}
+          FFMPEG_REV: ${{ needs.check.outputs.ffmpeg }}
+        run: bash scripts/build.sh "$BUILDER_REV" "$FFMPEG_REV"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg
+          path: dist/*
+          if-no-files-found: error
+          compression-level: 0
+  test:
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ffmpeg
+          path: dist
+      - name: Test Windows binaries
+        shell: pwsh
+        run: |
+          Expand-Archive dist/cs-demodesk-ffmpeg-win64-gpl-shared.zip package
+          ./scripts/smoke.ps1 -Bin package/bin
+  release:
+    needs: [check, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ffmpeg
+          path: dist
+      - name: Publish tested package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.check.outputs.tag }}
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum --check SHA256SUMS
+          printf '%s\n' 'Minimal Windows x64 FFmpeg for CS DemoDesk.' 'CPU smoke tests passed. NVIDIA hardware validation is separate.' 'Sources, licenses and build provenance are included in the attached archives.' > notes.md
+          gh release create "$RELEASE_TAG" *.zip *.tar.xz SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "$RELEASE_TAG" --notes-file notes.md --latest
