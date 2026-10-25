@@ -10,4 +10,4 @@ FF_CONFIGURE+=' --enable-decoder=h264,hevc,libdav1d,aac,pcm_s16le,pcm_s24le,pcm_
 FF_CONFIGURE+=' --enable-encoder=libx264,libx265,libsvtav1,h264_nvenc,hevc_nvenc,av1_nvenc,aac,pcm_s16le,rawvideo,wrapped_avframe'
 FF_CONFIGURE+=' --enable-parser=h264,hevc,av1,aac'
 FF_CONFIGURE+=' --enable-bsf=aac_adtstoasc,h264_mp4toannexb,hevc_mp4toannexb,extract_extradata,av1_metadata'
-FF_CONFIGURE+=' --enable-filter=scale,format,fps,null,anull,aformat,aresample,apad,trim,atrim,setpts,asetpts,concat,color,testsrc2,sine'
+FF_CONFIGURE+=' --enable-filter=scale,format,fps,setsar,null,anull,aformat,aresample,apad,trim,atrim,setpts,asetpts,concat,color,testsrc2,sine'
