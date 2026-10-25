@@ -26,6 +26,14 @@ Each build records its source revisions and base-image digests, uses a reduced d
 
 Failed builds do not replace the last successful release. GitHub may disable scheduled workflows in inactive public repositories; manual dispatch remains available.
 
+## Release versions
+
+Release tags and titles use `<FFmpeg-version>-<8-character-package-hash>`, for example `N-128013-g6b05263b44-xxxxxxxx` (the suffix shown here is a placeholder). The FFmpeg version comes from the selected upstream asset. The package hash identifies the upstream publication, asset and this repository's build revision; it distinguishes packaging changes without hiding the FFmpeg version. Hashes identify builds, not their chronological order.
+
+This project currently tracks FFmpeg master builds, whose versions start with `N-`. They are not labeled as stable releases such as `9.0.3`. Existing `build-...` releases and their download URLs are preserved; subsequent releases use the new naming format.
+
+Each release description starts with the FFmpeg version, a direct link to the exact BtbN `autobuild-...` release, and a link to the FFmpeg source commit. The FFmpeg version also appears in that BtbN release's Windows master shared ZIP filename.
+
 ## Build locally
 
 On Linux with Bash, Git, Python 3, Docker, and ZIP installed:

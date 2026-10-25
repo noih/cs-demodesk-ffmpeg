@@ -30,12 +30,22 @@ def select_release(releases):
     return release, asset, match[1]
 
 
+def release_tag(release, asset, build_revision):
+    version = asset["name"].removeprefix("ffmpeg-").removesuffix("-win64-gpl-shared.zip")
+    identity = json.dumps([release["id"], release["tag_name"], asset["id"], asset["updated_at"],
+                           asset.get("digest"), build_revision])
+    return version + "-" + hashlib.sha256(identity.encode()).hexdigest()[:8]
+
+
 def main():
     release, asset, ffmpeg_short = select_release(api("BtbN/FFmpeg-Builds/releases?per_page=100"))
-    identity = json.dumps([release["id"], release["tag_name"], asset["id"], asset["updated_at"],
-                           asset.get("digest"), os.environ["GITHUB_SHA"]])
-    tag = "build-" + hashlib.sha256(identity.encode()).hexdigest()[:24]
-    outputs = {"tag": tag, "changed": "false"}
+    tag = release_tag(release, asset, os.environ["GITHUB_SHA"])
+    outputs = {
+        "tag": tag,
+        "changed": "false",
+        "upstream": release["tag_name"],
+        "version": asset["name"].removeprefix("ffmpeg-").removesuffix("-win64-gpl-shared.zip"),
+    }
     try:
         own_release = api(os.environ["GITHUB_REPOSITORY"] + "/releases/tags/" + tag)
         if own_release["draft"]:

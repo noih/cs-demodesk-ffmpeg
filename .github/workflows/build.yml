@@ -16,6 +16,8 @@ jobs:
       ffmpeg: ${{ steps.upstream.outputs.ffmpeg }}
       tag: ${{ steps.upstream.outputs.tag }}
       changed: ${{ steps.upstream.outputs.changed }}
+      upstream: ${{ steps.upstream.outputs.upstream }}
+      version: ${{ steps.upstream.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - id: upstream
@@ -72,11 +74,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.check.outputs.tag }}
+          UPSTREAM_TAG: ${{ needs.check.outputs.upstream }}
+          FFMPEG_VERSION: ${{ needs.check.outputs.version }}
+          FFMPEG_REV: ${{ needs.check.outputs.ffmpeg }}
         run: |
           set -euo pipefail
           cd dist
           sha256sum --check SHA256SUMS
-          printf '%s\n' 'Minimal Windows x64 FFmpeg for CS DemoDesk.' 'CPU smoke tests passed. NVIDIA hardware validation is separate.' 'Sources, licenses and build provenance are included in the attached archives.' > notes.md
+          {
+            printf 'FFmpeg version: **%s**\n\n' "$FFMPEG_VERSION"
+            printf 'BtbN source release: [%s](https://github.com/BtbN/FFmpeg-Builds/releases/tag/%s)\n\n' "$UPSTREAM_TAG" "$UPSTREAM_TAG"
+            printf 'FFmpeg source: [%s](https://github.com/FFmpeg/FFmpeg/commit/%s)\n\n' "$FFMPEG_REV" "$FFMPEG_REV"
+            printf '%s\n' 'Minimal Windows x64 FFmpeg for CS DemoDesk.' 'CPU smoke tests passed. NVIDIA hardware validation is separate.' 'Sources, licenses and build provenance are included in the attached archives.'
+          } > notes.md
           gh release create "$RELEASE_TAG" *.zip *.tar.xz SHA256SUMS \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "$RELEASE_TAG" --notes-file notes.md --latest
