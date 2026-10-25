@@ -3,3 +3,4 @@
 /package/
 /smoke-output/
 __pycache__/
+/.cache/
