@@ -27,9 +27,32 @@ jobs:
         run: |
           python3 scripts/test_check_release.py
           python3 scripts/check-release.py
-  build:
+  reserve-tag:
     needs: check
     if: needs.check.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Reserve tag before the long build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.check.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Tag while this revision is current; publishing an older workflow can require extra permissions.
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq '.object.sha' > tag-sha.txt 2> tag-error.txt; then
+            test "$(cat tag-sha.txt)" = "$GITHUB_SHA" || { echo 'Release tag points to a different commit'; exit 1; }
+          elif grep -q '(HTTP 404)' tag-error.txt; then
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f "ref=refs/tags/$RELEASE_TAG" -f "sha=$GITHUB_SHA"
+          else
+            cat tag-error.txt >&2
+            exit 1
+          fi
+  build:
+    needs: [check, reserve-tag]
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
@@ -88,5 +111,5 @@ jobs:
             printf '%s\n' 'Minimal Windows x64 FFmpeg for CS DemoDesk.' 'CPU smoke tests passed. NVIDIA hardware validation is separate.' 'Sources, licenses and build provenance are included in the attached archives.'
           } > notes.md
           gh release create "$RELEASE_TAG" *.zip *.tar.xz SHA256SUMS \
-            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --repo "$GITHUB_REPOSITORY" --verify-tag \
             --title "$RELEASE_TAG" --notes-file notes.md --latest
