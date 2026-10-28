@@ -17,8 +17,7 @@ build recipes.
 
 This MIT license does not relicense FFmpeg or its dependencies. The Windows
 `gpl-shared` package includes the GNU GPLv3 text as `LICENSE.txt`; FFmpeg and
-third-party components retain their respective licenses. The runtime archive
-also includes this repository's MIT license as `BUILD-LICENSE.txt`.
+third-party components retain their respective licenses.
 
 The accompanying `sources.tar.xz` contains FFmpeg and dependency source archives,
 upstream build recipes, and this repository's scripts, README, and LICENSE.
