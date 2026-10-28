@@ -88,10 +88,12 @@ cp "$root/work/ffmpeg/COPYING.GPLv3" "$root/work/runtime/LICENSE.txt"
 printf 'BtbN: %s\nFFmpeg: %s\nBase: %s\nDownload base: %s\n' "$1" "$2" "$base" "$download_base" > "$root/work/runtime/build-info.txt"
 cp "$root/work/ffmpeg/ffbuild/config.mak" "$root/work/runtime/"
 cp "$root/README.md" "$root/work/runtime/"
+cp "$root/LICENSE" "$root/work/runtime/BUILD-LICENSE.txt"
 git -C "$root/work/ffmpeg" archive HEAD | xz -T2 > "$root/work/sources/ffmpeg.tar.xz"
 cp .cache/downloads/*.tar.xz "$root/work/sources/"
 tar --exclude=.git --exclude=.cache -cJf "$root/work/sources/build-recipes.tar.xz" .
 cp -r "$root/scripts" "$root/work/sources/"
+cp "$root/README.md" "$root/LICENSE" "$root/work/sources/"
 cp "$root/work/runtime/build-info.txt" "$root/work/sources/"
 (cd "$root/work/runtime" && zip -9 -r "$root/dist/cs-demodesk-ffmpeg-win64-gpl-shared.zip" .)
 tar -C "$root/work/sources" -cJf "$root/dist/sources.tar.xz" .
