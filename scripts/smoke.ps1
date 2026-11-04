@@ -58,7 +58,8 @@ try {
         foreach ($pass in 1,2) {
             $args = $common.Clone()
             if ($name -eq 'libx265') { $args += @('-x265-params',"pass=${pass}:stats=$name.log") }
-            else { $args += @('-pass',"$pass",'-passlogfile',"$name.log") }
+            # Scope pass options to video so AAC does not request a second-pass log.
+            else { $args += @('-pass:v',"$pass",'-passlogfile:v',"$name.log") }
             if ($pass -eq 1) { Run ($args + @('-an','-f','null','NUL')) }
             else { Run ($args + @('-c:a','aac','-ar','48000','-ac','2','-movflags','+faststart',"$name.mp4")) }
         }
