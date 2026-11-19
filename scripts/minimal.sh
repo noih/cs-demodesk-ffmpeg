@@ -2,8 +2,7 @@
 # Sourced as a BtbN build add-in, before dependency enable flags are appended.
 FF_CONFIGURE+=' --disable-autodetect --disable-everything --disable-network --disable-ffplay --disable-doc'
 FF_CONFIGURE+=' --enable-ffmpeg --enable-ffprobe --enable-avcodec --enable-avformat --enable-avfilter --enable-swscale --enable-swresample'
-# Both vendor SDKs are built into the shared builder image. build.sh disables
-# the opposite vendor for each package so the resulting packages are isolated.
+# Include both GPU backends in the same package; drivers are loaded at runtime.
 # D3D11VA provides the Windows GPU device path used by AMF and hardware decode.
 FF_CONFIGURE+=' --enable-nvenc --enable-amf --enable-d3d11va'
 FF_CONFIGURE+=' --enable-protocol=file,pipe --enable-indev=lavfi'
