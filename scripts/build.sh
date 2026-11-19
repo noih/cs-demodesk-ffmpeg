@@ -13,7 +13,7 @@ cp "$root/scripts/minimal.sh" addins/demodesk.sh
 # Keep upstream dependency recipes and their transitive toolchain dependencies.
 cat > scripts.d/zz-final.sh <<'EOF'
 SCRIPT_SKIP=1
-ffbuild_depends() { printf '%s\n' x264 x265 svtav1 dav1d ffnvcodec; }
+ffbuild_depends() { printf '%s\n' x264 x265 svtav1 dav1d ffnvcodec amf; }
 ffbuild_enabled() { return 0; }
 ffbuild_dockerfinal() { return 0; }
 EOF
@@ -72,29 +72,43 @@ mark "dependency build and cache export"
 git clone --filter=blob:none --no-checkout https://github.com/FFmpeg/FFmpeg.git "$root/work/ffmpeg"
 git -C "$root/work/ffmpeg" checkout --detach "$2"
 mark "FFmpeg sources"
-docker run --rm -u "$(id -u):$(id -g)" -v "$root/work:/work" -w /work/ffmpeg demodesk-ffmpeg-builder bash -euo pipefail -c '
-    ./configure --prefix=/work/package --pkg-config-flags=--static $FFBUILD_TARGET_FLAGS $FF_CONFIGURE \
-        --extra-cflags="$FF_CFLAGS" --extra-cxxflags="$FF_CXXFLAGS" --extra-libs="$FF_LIBS" \
-        --extra-ldflags="$FF_LDFLAGS" --extra-ldexeflags="$FF_LDEXEFLAGS" \
-        --cc="$CC" --cxx="$CXX" --ar="$AR" --ranlib="$RANLIB" --nm="$NM"
-    make -j"$(nproc)"
-    make install
-'
-mark "FFmpeg compile"
-mkdir -p "$root/work/runtime/bin" "$root/work/sources"
-cp "$root/work/package/bin/ffmpeg.exe" "$root/work/package/bin/ffprobe.exe" "$root/work/runtime/bin/"
-cp "$root/work/package/bin/"*.dll "$root/work/runtime/bin/"
-cp "$root/work/ffmpeg/COPYING.GPLv3" "$root/work/runtime/LICENSE.txt"
-printf 'BtbN: %s\nFFmpeg: %s\nBase: %s\nDownload base: %s\n' "$1" "$2" "$base" "$download_base" > "$root/work/runtime/build-info.txt"
-cp "$root/work/ffmpeg/ffbuild/config.mak" "$root/work/runtime/"
-cp "$root/README.md" "$root/work/runtime/"
+for variant in nvidia amd; do
+    case "$variant" in
+        nvidia)
+            variant_flags='--disable-amf --disable-d3d11va --disable-encoder=h264_amf,hevc_amf,av1_amf'
+            ;;
+        amd)
+            variant_flags='--disable-nvenc --disable-ffnvcodec --disable-encoder=h264_nvenc,hevc_nvenc,av1_nvenc'
+            ;;
+    esac
+    mark "FFmpeg configure ($variant)"
+    docker run --rm -u "$(id -u):$(id -g)" -v "$root/work:/work" -w /work/ffmpeg demodesk-ffmpeg-builder bash -euo pipefail -c "
+        make distclean >/dev/null 2>&1 || true
+        ./configure --prefix=/work/package-$variant --pkg-config-flags=--static \$FFBUILD_TARGET_FLAGS \$FF_CONFIGURE $variant_flags \\
+            --extra-cflags=\"\$FF_CFLAGS\" --extra-cxxflags=\"\$FF_CXXFLAGS\" --extra-libs=\"\$FF_LIBS\" \\
+            --extra-ldflags=\"\$FF_LDFLAGS\" --extra-ldexeflags=\"\$FF_LDEXEFLAGS\" \\
+            --cc=\"\$CC\" --cxx=\"\$CXX\" --ar=\"\$AR\" --ranlib=\"\$RANLIB\" --nm=\"\$NM\"
+        make -j\"\$(nproc)\"
+        make install
+    "
+    mark "FFmpeg compile ($variant)"
+    runtime="$root/work/runtime-$variant"
+    mkdir -p "$runtime/bin"
+    cp "$root/work/package-$variant/bin/ffmpeg.exe" "$root/work/package-$variant/bin/ffprobe.exe" "$runtime/bin/"
+    cp "$root/work/package-$variant/bin/"*.dll "$runtime/bin/"
+    cp "$root/work/ffmpeg/COPYING.GPLv3" "$runtime/LICENSE.txt"
+    printf 'Variant: %s\nBtbN: %s\nFFmpeg: %s\nBase: %s\nDownload base: %s\n' "$variant" "$1" "$2" "$base" "$download_base" > "$runtime/build-info.txt"
+    cp "$root/work/ffmpeg/ffbuild/config.mak" "$runtime/"
+    cp "$root/README.md" "$runtime/"
+done
+mkdir -p "$root/work/sources"
 git -C "$root/work/ffmpeg" archive HEAD | xz -T2 > "$root/work/sources/ffmpeg.tar.xz"
 cp .cache/downloads/*.tar.xz "$root/work/sources/"
 tar --exclude=.git --exclude=.cache -cJf "$root/work/sources/build-recipes.tar.xz" .
 cp -r "$root/scripts" "$root/work/sources/"
 cp "$root/README.md" "$root/LICENSE" "$root/work/sources/"
-cp "$root/work/runtime/build-info.txt" "$root/work/sources/"
-(cd "$root/work/runtime" && zip -9 -r "$root/dist/cs-demodesk-ffmpeg-win64-gpl-shared.zip" .)
+(cd "$root/work/runtime-nvidia" && zip -9 -r "$root/dist/cs-demodesk-ffmpeg-win64-gpl-shared.zip" .)
+(cd "$root/work/runtime-amd" && zip -9 -r "$root/dist/cs-demodesk-ffmpeg-win64-gpl-shared-amd.zip" .)
 tar -C "$root/work/sources" -cJf "$root/dist/sources.tar.xz" .
 (cd "$root/dist" && sha256sum *.zip *.tar.xz > SHA256SUMS)
 

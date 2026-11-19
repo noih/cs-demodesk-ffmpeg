@@ -62,10 +62,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .cache
-          key: ffmpeg-win64-v1-${{ needs.check.outputs.builder }}-${{ hashFiles('scripts/build.sh', 'scripts/minimal.sh') }}
+          key: ffmpeg-win64-v2-${{ needs.check.outputs.builder }}-${{ hashFiles('scripts/build.sh', 'scripts/minimal.sh') }}
           restore-keys: |
-            ffmpeg-win64-v1-${{ needs.check.outputs.builder }}-
-            ffmpeg-win64-v1-
+            ffmpeg-win64-v2-${{ needs.check.outputs.builder }}-
+            ffmpeg-win64-v2-
       - name: Build minimal Windows package
         env:
           BUILDER_REV: ${{ needs.check.outputs.builder }}
@@ -90,8 +90,10 @@ jobs:
       - name: Test Windows binaries
         shell: pwsh
         run: |
-          Expand-Archive dist/cs-demodesk-ffmpeg-win64-gpl-shared.zip package
-          ./scripts/smoke.ps1 -Bin package/bin
+          Expand-Archive dist/cs-demodesk-ffmpeg-win64-gpl-shared.zip package-nvidia
+          ./scripts/smoke.ps1 -Bin package-nvidia/bin -Variant nvidia
+          Expand-Archive dist/cs-demodesk-ffmpeg-win64-gpl-shared-amd.zip package-amd
+          ./scripts/smoke.ps1 -Bin package-amd/bin -Variant amd
   release:
     needs: [check, test]
     runs-on: ubuntu-latest
@@ -117,7 +119,7 @@ jobs:
             printf 'FFmpeg version: **%s**\n\n' "$FFMPEG_VERSION"
             printf 'BtbN source release: [%s](https://github.com/BtbN/FFmpeg-Builds/releases/tag/%s)\n\n' "$UPSTREAM_TAG" "$UPSTREAM_TAG"
             printf 'FFmpeg source: [%s](https://github.com/FFmpeg/FFmpeg/commit/%s)\n\n' "$FFMPEG_REV" "$FFMPEG_REV"
-            printf '%s\n' 'Minimal Windows x64 FFmpeg for CS DemoDesk.' 'CPU smoke tests passed. NVIDIA hardware validation is separate.' 'Sources, licenses and build provenance are included in the attached archives.'
+            printf '%s\n' 'Minimal Windows x64 FFmpeg for CS DemoDesk.' 'CPU smoke tests passed for isolated NVIDIA and AMD packages. Hardware validation is separate.' 'Sources, licenses and build provenance are included in the attached archives.'
           } > notes.md
           gh release create "$RELEASE_TAG" *.zip *.tar.xz SHA256SUMS \
             --repo "$GITHUB_REPOSITORY" --verify-tag \

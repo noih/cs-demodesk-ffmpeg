@@ -1,4 +1,7 @@
-param([Parameter(Mandatory)][string]$Bin)
+param(
+    [Parameter(Mandatory)][string]$Bin,
+    [Parameter(Mandatory)][ValidateSet('nvidia', 'amd')][string]$Variant
+)
 $ErrorActionPreference = 'Stop'
 $ffmpeg = (Resolve-Path (Join-Path $Bin 'ffmpeg.exe')).Path
 $ffprobe = (Resolve-Path (Join-Path $Bin 'ffprobe.exe')).Path
@@ -12,8 +15,20 @@ Push-Location $output
 try {
     $encoders = (& $ffmpeg -hide_banner -encoders 2>&1) -join "`n"
     if ($LASTEXITCODE -ne 0) { throw 'Cannot load FFmpeg' }
-    foreach ($codec in 'libx264', 'libx265', 'libsvtav1', 'h264_nvenc', 'hevc_nvenc', 'av1_nvenc') {
+    $required = @('libx264', 'libx265', 'libsvtav1')
+    $forbidden = @()
+    if ($Variant -eq 'nvidia') {
+        $required += @('h264_nvenc', 'hevc_nvenc', 'av1_nvenc')
+        $forbidden = @('h264_amf', 'hevc_amf', 'av1_amf')
+    } else {
+        $required += @('h264_amf', 'hevc_amf', 'av1_amf')
+        $forbidden = @('h264_nvenc', 'hevc_nvenc', 'av1_nvenc')
+    }
+    foreach ($codec in $required) {
         if ($encoders -notmatch "\b$codec\b") { throw "Missing encoder: $codec" }
+    }
+    foreach ($codec in $forbidden) {
+        if ($encoders -match "\b$codec\b") { throw "Unexpected encoder in $Variant package: $codec" }
     }
     # HLAE adds setsar itself, so file-to-file encoding alone cannot validate capture compatibility.
     Run @('-f','lavfi','-i','testsrc2=size=320x180:rate=30','-t','1','-pix_fmt','bgr24','-c:v','rawvideo','-f','rawvideo','capture.raw')
@@ -53,15 +68,17 @@ try {
     )
     foreach ($config in $configs) {
         $name = $config.Name
-        $common = @('-i','input.mp4','-vf','scale=320:180,fps=24','-c:v',$name,
+        # Keep the video output at stream index 0 in both passes. FFmpeg names
+        # pass logs as PREFIX-N.log, where N is the output stream index; letting
+        # audio auto-map can make pass 2 look for a different log on Windows.
+        $common = @('-i','input.mp4','-map','0:v:0','-vf','scale=320:180,fps=24','-c:v',$name,
             '-preset',$config.Preset,'-pix_fmt',$config.Pixel,'-b:v','500k')
         foreach ($pass in 1,2) {
             $args = $common.Clone()
             if ($name -eq 'libx265') { $args += @('-x265-params',"pass=${pass}:stats=$name.log") }
-            # Scope pass options to video so AAC does not request a second-pass log.
-            else { $args += @('-pass:v',"$pass",'-passlogfile:v',"$name.log") }
+            else { $args += @('-pass:v:0',"$pass",'-passlogfile:v:0',"$name.log") }
             if ($pass -eq 1) { Run ($args + @('-an','-f','null','NUL')) }
-            else { Run ($args + @('-c:a','aac','-ar','48000','-ac','2','-movflags','+faststart',"$name.mp4")) }
+            else { Run ($args + @('-map','0:a:0','-c:a','aac','-ar','48000','-ac','2','-movflags','+faststart',"$name.mp4")) }
         }
         Run @('-i',"$name.mp4",'-f','null','NUL')
         $json = & $ffprobe -v error -show_streams -show_format -of json "$name.mp4"
@@ -77,7 +94,7 @@ try {
     Run @('-i','joined.mp4','-i','audio.wav','-map','0:v:0','-map','1:a:0','-c:v','copy','-c:a','aac','-shortest','remux.mp4')
     Run @('-f','lavfi','-i','color=size=320x180:rate=30','-frames:v','3','-c:v','libx264','-f','null','NUL')
     Write-Host "HLAE pipe capture, CPU encoding, two-pass, decoding, audio and concat passed. Logs: $output"
-    Write-Host 'NVENC encoders are present; actual GPU encoding remains a hardware integration check.'
+    Write-Host "$Variant package passed CPU smoke tests and contains only its expected vendor encoders. Actual GPU encoding remains a hardware integration check."
 } finally {
     Pop-Location
 }
